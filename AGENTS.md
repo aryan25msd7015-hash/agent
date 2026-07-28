@@ -9,15 +9,16 @@ Windows-first personal automation agent (Python 3.11+). Core services:
 - `connector/runtime/agent.py` — local heartbeat daemon. Optional.
 - `mcp-servers/*` — Google Drive / Tableau MCP servers. Optional; need Google OAuth credentials.
 
-### Setup / dependencies
-- The update script creates a `.venv` and installs `pip install -e ".[dev]"`. Standard commands live in `pyproject.toml` and `README.md`.
-- `python3-venv` (system package) is required to create the virtualenv; it is installed at the OS level, not by the update script.
-- Always activate the venv first: `. .venv/bin/activate`.
+### Setup / dependencies (fast test startup)
+- Dependencies are installed **into the system `python3` (3.12) user site**, not a virtualenv, so `python3 -m pytest -q` works immediately with no activation step.
+- The update script runs `python3 -m pip install --user --break-system-packages -e ".[dev]"` (guarded on `pyproject.toml` existing). `--break-system-packages` is required on Ubuntu 24.04 (PEP 668 externally-managed); `--user` installs to `~/.local` which persists in the VM snapshot.
+- Heavy deps (chromadb, faster-whisper/onnxruntime, langgraph, google-api-python-client, python-telegram-bot, etc.) are preinstalled in the snapshot, so the boot-time `pip install` is a fast warm re-check (~4s) rather than a cold build (~30s).
+- Do **not** create a `.venv`; use `python3`/`pip` directly. Standard package config lives in `pyproject.toml`.
 
 ### Lint / test / run
 - Lint: `ruff check .` (the repo currently has pre-existing ruff findings; that is expected).
-- Test: `python -m pytest` (7 tests, all offline; `faster-whisper`/Google/Ollama calls are not exercised or are mocked).
-- Run API (dev): `python -m uvicorn brain.api:app --host 127.0.0.1 --port 8787` then `POST /v1/tasks` with `{"intent": "list ."}`.
+- Test: `python3 -m pytest -q` (7 tests, all offline; `faster-whisper`/Google/Ollama calls are not exercised or are mocked).
+- Run API (dev): `python3 -m uvicorn brain.api:app --host 127.0.0.1 --port 8787` then `POST /v1/tasks` with `{"intent": "list ."}`.
 
 ### Non-obvious caveats
 - Headless-safe: `pyautogui` fails to import without a display, so `UIAutomationEngine` falls back to **dry-run** mode automatically. `automate ...` intents therefore return `dry_run: true` — this is expected in the cloud VM, not a bug.
