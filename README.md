@@ -37,6 +37,9 @@ This repository contains a personal automation agent that:
 - Local LLM endpoint defaults to Ollama at `http://127.0.0.1:11434`.
 - `STOP` sent in Telegram triggers kill switch for bot process.
 - Tableau flow currently packages template + dataset into `.twbx`.
+- Local memory:
+  - semantic facts in `data/chroma`
+  - user preference snapshot in `brain/memory/prefs.json`
 - Universal automation format:
   - `automate chrome: hotkey ctrl+l; type https://example.com; press enter`
   - `browse https://example.com`

@@ -23,7 +23,7 @@ class UIAutomationEngine:
             import pyautogui  # type: ignore
 
             self._pyautogui = pyautogui
-        except Exception:
+        except BaseException:
             self._pyautogui = None
 
     def execute(self, app: str, steps: list[ActionStep], dry_run: bool = False) -> dict[str, Any]:

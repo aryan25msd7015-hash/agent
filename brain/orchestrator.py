@@ -5,6 +5,9 @@ from typing import Any
 
 import httpx
 
+from brain.graph import build_router
+from brain.memory.chroma_store import MemoryStore
+from brain.memory.prefs import PrefStore
 from config.settings import settings
 from skills.action_graph import parse_action_graph
 from skills.browser_automation import open_url
@@ -17,26 +20,33 @@ from skills.ui_automation import UIAutomationEngine
 class Orchestrator:
     def __init__(self) -> None:
         self.ui = UIAutomationEngine()
+        self.router = build_router()
+        self.memory = MemoryStore()
+        self.prefs = PrefStore()
 
     def run(self, intent: str) -> dict[str, Any]:
         lower = intent.lower()
+        route_state = self.router.invoke({"intent": intent, "route": ""})
+        route = route_state["route"]
         app, steps = parse_action_graph(intent)
-        if app and steps:
+        if route == "ui_automation" and app and steps:
             execution = self.ui.execute(app, steps)
             return {"action": "ui_automation", "app": app, "execution": execution}
-        if lower.startswith("browse "):
+        if route == "browser" and lower.startswith("browse "):
             url = intent[7:].strip()
             return open_url(url)
-        if "download" in lower and "gdrive" in lower:
+        if route == "gdrive":
             filename = self._guess_filename(intent)
+            self.memory.add_fact(f"dataset:{filename}", f"Google Drive dataset requested: {filename}", {"kind": "dataset"})
             path = download_file_by_name(
                 filename=filename,
                 output_dir=settings.default_download_dir,
                 credentials_file=settings.drive_credentials_file,
                 token_file=settings.drive_token_file,
             )
+            self.prefs.set("last_download_path", path)
             return {"action": "download_gdrive", "path": path}
-        if "tableau" in lower and "dashboard" in lower:
+        if route == "tableau":
             filename = self._guess_filename(intent)
             csv_path = download_file_by_name(
                 filename=filename,
@@ -45,6 +55,12 @@ class Orchestrator:
                 token_file=settings.drive_token_file,
             )
             twbx = build_twbx_from_template(csv_path, "skills/templates/default.twb", settings.default_output_dir)
+            self.prefs.set("last_tableau_output", twbx)
+            self.memory.add_fact(
+                f"tableau:{filename}",
+                f"Generated Tableau package from {filename}: {twbx}",
+                {"kind": "tableau_output"},
+            )
             return {"action": "build_tableau", "csv_path": csv_path, "twbx": twbx}
         if lower.startswith("open "):
             return {"action": "open_path", "result": open_path(intent[5:].strip())}

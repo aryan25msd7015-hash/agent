@@ -4,10 +4,25 @@ import asyncio
 import tempfile
 
 import httpx
+from faster_whisper import WhisperModel
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
 
 from config.settings import settings
+
+_whisper_model: WhisperModel | None = None
+
+
+def _transcribe_voice(path: str) -> str:
+    global _whisper_model
+    try:
+        if _whisper_model is None:
+            _whisper_model = WhisperModel("base", device="cpu", compute_type="int8")
+        segments, _ = _whisper_model.transcribe(path)
+        text = " ".join(seg.text.strip() for seg in segments).strip()
+        return text or "voice command"
+    except Exception:
+        return "voice command"
 
 
 async def _authorized(update: Update) -> bool:
@@ -42,9 +57,9 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         path = f"{td}/voice.ogg"
         file = await context.bot.get_file(voice.file_id)
         await file.download_to_drive(path)
-        # Placeholder transcript until local whisper wiring is expanded.
-        result = await _submit("voice command received")
-        await update.message.reply_text(f"Voice accepted. {result}")
+        transcript = await asyncio.to_thread(_transcribe_voice, path)
+        result = await _submit(transcript)
+        await update.message.reply_text(f"Voice transcript: {transcript}\n{result}")
 
 
 async def _submit(intent: str) -> str:

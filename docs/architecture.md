@@ -13,7 +13,10 @@ A private, single-user agent that can receive mobile commands, plan locally, and
 ## Core services
 
 - `brain/api.py`: task API + websocket streams
-- `brain/orchestrator.py`: intent routing and model summarization
+- `brain/graph.py`: LangGraph intent router
+- `brain/orchestrator.py`: route execution + tool calls + local memory updates
+- `brain/memory/chroma_store.py`: semantic memory
+- `brain/memory/prefs.py`: persistent user preferences
 - `bot/telegram_bot.py`: remote text/voice command ingress
 - `connector/runtime/agent.py`: local connector heartbeat daemon
 
@@ -22,3 +25,4 @@ A private, single-user agent that can receive mobile commands, plan locally, and
 - Telegram user-id allowlist
 - Kill switch (`STOP`)
 - Local-only LLM by default (Ollama endpoint)
+- Persisted local memory (Chroma + prefs JSON)
