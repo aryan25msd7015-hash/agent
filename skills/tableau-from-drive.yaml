@@ -1,0 +1,9 @@
+name: tableau_dashboard_from_drive
+steps:
+  - tool: google_drive.download
+    args:
+      filename: "{{dataset_name}}"
+  - tool: tableau.build_twbx
+    args:
+      csv_path: "{{step0.path}}"
+      template: "skills/templates/default.twb"
