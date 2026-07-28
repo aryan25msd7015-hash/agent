@@ -3,8 +3,11 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+from config.allowlist import assert_path_allowed
+
 
 def open_path(path: str) -> str:
+    assert_path_allowed(path)
     p = Path(path)
     if not p.exists():
         raise FileNotFoundError(path)
@@ -13,6 +16,7 @@ def open_path(path: str) -> str:
 
 
 def list_dir(path: str) -> str:
+    assert_path_allowed(path)
     p = Path(path)
     if not p.exists():
         raise FileNotFoundError(path)

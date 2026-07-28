@@ -1,3 +1,30 @@
+Metadata-Version: 2.4
+Name: personal-agent
+Version: 0.1.0
+Summary: Windows-first personal automation agent with local LLM and Telegram control.
+Requires-Python: >=3.11
+Description-Content-Type: text/markdown
+Requires-Dist: fastapi>=0.116.1
+Requires-Dist: uvicorn>=0.35.0
+Requires-Dist: pydantic>=2.11.7
+Requires-Dist: httpx>=0.28.1
+Requires-Dist: python-telegram-bot>=22.3
+Requires-Dist: faster-whisper>=1.2.0
+Requires-Dist: google-api-python-client>=2.178.0
+Requires-Dist: google-auth-oauthlib>=1.2.2
+Requires-Dist: chromadb>=1.0.16
+Requires-Dist: pyyaml>=6.0.2
+Requires-Dist: pyautogui>=0.9.54
+Requires-Dist: langgraph>=0.6.6
+Requires-Dist: keyring>=25.6.0
+Requires-Dist: playwright>=1.55.0
+Requires-Dist: pywinauto>=0.6.9
+Requires-Dist: Pillow>=11.3.0
+Requires-Dist: wakeonlan>=3.1.0
+Provides-Extra: dev
+Requires-Dist: pytest>=8.4.1; extra == "dev"
+Requires-Dist: ruff>=0.12.7; extra == "dev"
+
 # Personal Agent (Windows-first, local-private)
 
 This repository contains a personal automation agent that:

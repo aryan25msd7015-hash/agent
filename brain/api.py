@@ -7,6 +7,7 @@ from fastapi import FastAPI, HTTPException, WebSocket
 from pydantic import BaseModel
 
 from brain.approval import requires_approval
+from brain.audit import audit_log
 from brain.orchestrator import Orchestrator
 from brain.store import TaskStore
 from config.settings import settings
@@ -121,6 +122,11 @@ async def report_task_result(task_id: str, req: TaskResultRequest) -> dict[str, 
     task = store.update_task(task_id, status=status, result=str(req.result))
     await _broadcast(task.id, {"event": status, "task_id": task.id, "result": req.result})
     return {"task_id": task.id, "status": task.status, "result": task.result}
+
+
+@app.get("/v1/history")
+def history(limit: int = 20) -> dict[str, Any]:
+    return {"events": audit_log.tail(limit=limit)}
 
 
 @app.get("/v1/tasks/{task_id}")
