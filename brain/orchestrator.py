@@ -10,7 +10,7 @@ from brain.memory.chroma_store import MemoryStore
 from brain.memory.prefs import PrefStore
 from config.settings import settings
 from skills.action_graph import parse_action_graph
-from skills.browser_automation import open_url
+from skills.browser_automation import open_url, run_workflow
 from skills.build_tableau import build_twbx_from_template
 from skills.download_gdrive import download_file_by_name
 from skills.registry import list_dir, open_path
@@ -34,6 +34,11 @@ class Orchestrator:
             return {"action": "ui_automation", "app": app, "execution": execution}
         if route == "browser" and lower.startswith("browse "):
             url = intent[7:].strip()
+            if "workflow:" in url:
+                # Format: browse <url> workflow: click=#id,fill=#q:hello
+                target, workflow = url.split("workflow:", maxsplit=1)
+                actions = self._parse_workflow(workflow.strip())
+                return run_workflow(target.strip(), actions=actions)
             return open_url(url)
         if route == "gdrive":
             filename = self._guess_filename(intent)
@@ -84,3 +89,18 @@ class Orchestrator:
             return body.get("response", "Could not parse model output").strip()
         except Exception:
             return json.dumps({"note": "Ollama not reachable. Task accepted for future execution."})
+
+    def _parse_workflow(self, workflow: str) -> list[dict[str, str]]:
+        actions: list[dict[str, str]] = []
+        for raw in [x.strip() for x in workflow.split(",") if x.strip()]:
+            if "=" not in raw:
+                continue
+            left, right = raw.split("=", maxsplit=1)
+            kind = left.strip().lower()
+            if ":" in right:
+                selector, value = right.split(":", maxsplit=1)
+            else:
+                selector, value = right, ""
+            if kind in {"click", "fill", "press"}:
+                actions.append({"type": kind, "selector": selector.strip(), "value": value.strip()})
+        return actions

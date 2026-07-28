@@ -75,3 +75,14 @@ class TaskStore:
         )
         self._conn.commit()
         return self.get_task(task_id)
+
+    def update_metadata(self, task_id: str, metadata: dict[str, Any]) -> Task:
+        task = self.get_task(task_id)
+        next_meta = dict(task.metadata or {})
+        next_meta.update(metadata)
+        self._conn.execute(
+            "UPDATE tasks SET metadata = ?, updated_at = ? WHERE id = ?",
+            (json.dumps(next_meta), Task.now_iso(), task_id),
+        )
+        self._conn.commit()
+        return self.get_task(task_id)

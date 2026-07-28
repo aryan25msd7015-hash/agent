@@ -40,6 +40,10 @@ This repository contains a personal automation agent that:
 - Local memory:
   - semantic facts in `data/chroma`
   - user preference snapshot in `brain/memory/prefs.json`
+- Approval gate:
+  - risky intents (delete/remove/format/shutdown patterns) pause in `pending_approval`
+  - continue with `POST /v1/tasks/{task_id}/approve` and body `{"approved": true|false}`
 - Universal automation format:
   - `automate chrome: hotkey ctrl+l; type https://example.com; press enter`
   - `browse https://example.com`
+  - browser workflow: `browse https://example.com workflow: click=#login,fill=#user:me@example.com`
