@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
+
+from skills.drive_web_helpers import click_download_menu_item, file_row_locators, pick_first_visible
 
 
 def run_workflow(url: str, actions: list[dict[str, str]] | None = None, headless: bool = True) -> dict[str, Any]:
@@ -127,14 +130,93 @@ def google_drive_web_download(
                     "error": "Could not find Drive search box selector.",
                 }
 
-            page.wait_for_timeout(3000)
+            try:
+                page.wait_for_load_state("networkidle", timeout=15000)
+            except Exception:
+                pass
+            page.wait_for_timeout(2000)
+
+            file_row = pick_first_visible(file_row_locators(page, query))
+            if file_row is None:
+                context.close()
+                return {
+                    "action": "google_drive_web_download",
+                    "status": "failed",
+                    "error": f"No search result found for '{query}'.",
+                    "download_dir": download_dir,
+                }
+
+            downloaded_path: str | None = None
+            download_error: str | None = None
+
+            # Strategy 1: right-click context menu -> Download
+            try:
+                file_row.click(button="right")
+                page.wait_for_timeout(500)
+                with page.expect_download(timeout=45000) as dl_info:
+                    if not click_download_menu_item(page):
+                        raise RuntimeError("Download menu item not found in context menu")
+                download = dl_info.value
+                target = Path(download_dir) / download.suggested_filename
+                download.save_as(str(target))
+                downloaded_path = str(target)
+            except Exception as exc:
+                download_error = str(exc)
+
+            # Strategy 2: select row -> More actions (three-dot) -> Download
+            if downloaded_path is None:
+                try:
+                    file_row.click()
+                    page.wait_for_timeout(400)
+                    more_btn = page.locator('[aria-label="More actions"], [data-tooltip="More actions"]').first
+                    if more_btn.count() == 0:
+                        raise RuntimeError("More actions button not found")
+                    more_btn.click()
+                    page.wait_for_timeout(400)
+                    with page.expect_download(timeout=45000) as dl_info:
+                        if not click_download_menu_item(page):
+                            raise RuntimeError("Download menu item not found in overflow menu")
+                    download = dl_info.value
+                    target = Path(download_dir) / download.suggested_filename
+                    download.save_as(str(target))
+                    downloaded_path = str(target)
+                except Exception as exc:
+                    download_error = f"{download_error}; overflow: {exc}" if download_error else str(exc)
+
+            # Strategy 3: keyboard shortcut (Shift+Z sometimes opens menu; Alt+Down on selected item)
+            if downloaded_path is None:
+                try:
+                    file_row.click()
+                    page.keyboard.press("Shift+F10")  # context menu key
+                    page.wait_for_timeout(400)
+                    with page.expect_download(timeout=45000) as dl_info:
+                        if not click_download_menu_item(page):
+                            raise RuntimeError("Download menu item not found via keyboard menu")
+                    download = dl_info.value
+                    target = Path(download_dir) / download.suggested_filename
+                    download.save_as(str(target))
+                    downloaded_path = str(target)
+                except Exception as exc:
+                    download_error = f"{download_error}; keyboard: {exc}" if download_error else str(exc)
+
             context.close()
+
+            if downloaded_path:
+                return {
+                    "action": "google_drive_web_download",
+                    "status": "executed",
+                    "query": query,
+                    "path": downloaded_path,
+                    "download_dir": download_dir,
+                }
+
             return {
                 "action": "google_drive_web_download",
-                "status": "executed",
+                "status": "failed",
+                "error": download_error or "Download could not be triggered.",
                 "query": query,
-                "note": "Search executed on Drive web UI. Download click flow is site-layout dependent.",
                 "download_dir": download_dir,
+                "hint": "Native Google Docs may require Export instead of Download; try API path for binary files.",
             }
     except Exception as exc:
         return {
@@ -158,7 +240,7 @@ def bootstrap_google_login(user_data_dir: str, headless: bool = False) -> dict[s
         with sync_playwright() as p:
             context = p.chromium.launch_persistent_context(user_data_dir=user_data_dir, headless=headless)
             page = context.new_page()
-            page.goto("https://accounts.google.com", wait_until="domcontentloaded")
+            page.goto("https://drive.google.com", wait_until="domcontentloaded")
             if headless:
                 context.close()
                 return {
@@ -166,10 +248,24 @@ def bootstrap_google_login(user_data_dir: str, headless: bool = False) -> dict[s
                     "status": "planned",
                     "note": "Headless mode cannot complete interactive login. Re-run with headless=False on desktop.",
                 }
+            # Interactive: wait until user completes login (Drive home loads).
+            for _ in range(120):
+                page.wait_for_timeout(5000)
+                title = page.title().lower()
+                url = page.url.lower()
+                if "drive.google.com" in url and "sign" not in title and "accounts.google" not in url:
+                    context.close()
+                    return {
+                        "action": "bootstrap_google_login",
+                        "status": "executed",
+                        "note": "Google Drive login detected. Persistent profile saved.",
+                        "profile_dir": user_data_dir,
+                    }
+            context.close()
             return {
                 "action": "bootstrap_google_login",
-                "status": "interactive",
-                "note": "Complete login in opened browser, then close browser window.",
+                "status": "failed",
+                "error": "Timed out waiting for Google Drive login.",
             }
     except Exception as exc:
         return {"action": "bootstrap_google_login", "status": "failed", "error": str(exc)}

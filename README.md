@@ -54,3 +54,4 @@ This repository contains a personal automation agent that:
   - one-time login bootstrap on desktop: `python deploy/bootstrap_drive_login.py`
   - command route: `browse https://drive.google.com download quarterly_report.csv`
   - requires persistent logged-in profile at `DRIVE_PLAYWRIGHT_USER_DATA_DIR`
+  - flow: search result -> right-click/overflow menu -> Download -> save to inbox
