@@ -1,0 +1,57 @@
+from __future__ import annotations
+
+import json
+from typing import Any
+
+import httpx
+
+from config.settings import settings
+from skills.build_tableau import build_twbx_from_template
+from skills.download_gdrive import download_file_by_name
+from skills.registry import list_dir, open_path
+
+
+class Orchestrator:
+    def run(self, intent: str) -> dict[str, Any]:
+        lower = intent.lower()
+        if "download" in lower and "gdrive" in lower:
+            filename = self._guess_filename(intent)
+            path = download_file_by_name(
+                filename=filename,
+                output_dir=settings.default_download_dir,
+                credentials_file=settings.drive_credentials_file,
+                token_file=settings.drive_token_file,
+            )
+            return {"action": "download_gdrive", "path": path}
+        if "tableau" in lower and "dashboard" in lower:
+            filename = self._guess_filename(intent)
+            csv_path = download_file_by_name(
+                filename=filename,
+                output_dir=settings.default_download_dir,
+                credentials_file=settings.drive_credentials_file,
+                token_file=settings.drive_token_file,
+            )
+            twbx = build_twbx_from_template(csv_path, "skills/templates/default.twb", settings.default_output_dir)
+            return {"action": "build_tableau", "csv_path": csv_path, "twbx": twbx}
+        if lower.startswith("open "):
+            return {"action": "open_path", "result": open_path(intent[5:].strip())}
+        if lower.startswith("list "):
+            return {"action": "list_dir", "result": list_dir(intent[5:].strip())}
+        summary = self._ollama_summary(intent)
+        return {"action": "chat", "result": summary}
+
+    def _guess_filename(self, intent: str) -> str:
+        for token in intent.replace('"', " ").replace("'", " ").split():
+            if token.endswith((".csv", ".xlsx", ".json")):
+                return token
+        return "sales_data.csv"
+
+    def _ollama_summary(self, intent: str) -> str:
+        payload = {"model": settings.ollama_model, "prompt": f"Summarize intent in 1 line: {intent}", "stream": False}
+        try:
+            res = httpx.post(f"{settings.ollama_base_url}/api/generate", json=payload, timeout=30)
+            res.raise_for_status()
+            body = res.json()
+            return body.get("response", "Could not parse model output").strip()
+        except Exception:
+            return json.dumps({"note": "Ollama not reachable. Task accepted for future execution."})
