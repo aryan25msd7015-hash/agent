@@ -8,3 +8,5 @@ __pycache__/
 logs/
 data/
 artifacts/
+*.egg-info/
+personal_agent.egg-info/
