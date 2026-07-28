@@ -6,6 +6,7 @@ This repository contains a personal automation agent that:
 - routes intent through a local orchestrator,
 - runs actions on your Windows machine,
 - supports Google Drive fetches and a Tableau `.twbx` packaging flow.
+- supports universal desktop/browser automation intents via action graphs.
 
 ## Architecture
 
@@ -36,3 +37,6 @@ This repository contains a personal automation agent that:
 - Local LLM endpoint defaults to Ollama at `http://127.0.0.1:11434`.
 - `STOP` sent in Telegram triggers kill switch for bot process.
 - Tableau flow currently packages template + dataset into `.twbx`.
+- Universal automation format:
+  - `automate chrome: hotkey ctrl+l; type https://example.com; press enter`
+  - `browse https://example.com`

@@ -6,14 +6,27 @@ from typing import Any
 import httpx
 
 from config.settings import settings
+from skills.action_graph import parse_action_graph
+from skills.browser_automation import open_url
 from skills.build_tableau import build_twbx_from_template
 from skills.download_gdrive import download_file_by_name
 from skills.registry import list_dir, open_path
+from skills.ui_automation import UIAutomationEngine
 
 
 class Orchestrator:
+    def __init__(self) -> None:
+        self.ui = UIAutomationEngine()
+
     def run(self, intent: str) -> dict[str, Any]:
         lower = intent.lower()
+        app, steps = parse_action_graph(intent)
+        if app and steps:
+            execution = self.ui.execute(app, steps)
+            return {"action": "ui_automation", "app": app, "execution": execution}
+        if lower.startswith("browse "):
+            url = intent[7:].strip()
+            return open_url(url)
         if "download" in lower and "gdrive" in lower:
             filename = self._guess_filename(intent)
             path = download_file_by_name(

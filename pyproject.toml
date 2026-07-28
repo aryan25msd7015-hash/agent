@@ -19,6 +19,7 @@ dependencies = [
   "google-auth-oauthlib>=1.2.2",
   "chromadb>=1.0.16",
   "pyyaml>=6.0.2",
+  "pyautogui>=0.9.54",
 ]
 
 [project.optional-dependencies]
