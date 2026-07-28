@@ -60,10 +60,37 @@ class TaskStore:
 
     def list_pending(self, target_device: str) -> list[Task]:
         rows = self._conn.execute(
-            "SELECT * FROM tasks WHERE status = 'pending' AND target_device = ? ORDER BY created_at ASC",
+            "SELECT * FROM tasks WHERE status IN ('pending', 'queued') AND target_device = ? ORDER BY created_at ASC",
             (target_device,),
         ).fetchall()
         return [self.get_task(r["id"]) for r in rows]
+
+    def claim_next(self, target_device: str) -> Task | None:
+        """Atomically claim the oldest queued task for a device."""
+        row = self._conn.execute(
+            """
+            SELECT id FROM tasks
+            WHERE status = 'queued' AND target_device = ?
+            ORDER BY created_at ASC
+            LIMIT 1
+            """,
+            (target_device,),
+        ).fetchone()
+        if row is None:
+            return None
+        task_id = row["id"]
+        cur = self._conn.execute(
+            """
+            UPDATE tasks
+            SET status = 'running', updated_at = ?
+            WHERE id = ? AND status = 'queued'
+            """,
+            (Task.now_iso(), task_id),
+        )
+        self._conn.commit()
+        if cur.rowcount == 0:
+            return None
+        return self.get_task(task_id)
 
     def update_task(self, task_id: str, *, status: str | None = None, result: str | None = None) -> Task:
         task = self.get_task(task_id)

@@ -8,6 +8,7 @@ import httpx
 from brain.graph import build_router
 from brain.memory.chroma_store import MemoryStore
 from brain.memory.prefs import PrefStore
+from brain.planner import plan_action_graph
 from config.settings import settings
 from skills.action_graph import parse_action_graph
 from skills.browser_automation import (
@@ -96,6 +97,19 @@ class Orchestrator:
             return {"action": "build_tableau", "csv_path": csv_path, "twbx": twbx}
         if lower.startswith("open "):
             target = intent[5:].strip()
+            # Prefer NL planner for "open <app> and type ..." desktop phrases.
+            planned_open = plan_action_graph(intent)
+            if planned_open:
+                app, steps = parse_action_graph(planned_open)
+                if app and steps:
+                    execution = self.ui.execute(app, steps)
+                    return {
+                        "action": "ui_automation",
+                        "planned_from": intent,
+                        "command": planned_open,
+                        "app": app,
+                        "execution": execution,
+                    }
             try:
                 return {"action": "open_path", "result": open_path(target)}
             except FileNotFoundError as exc:
@@ -106,6 +120,21 @@ class Orchestrator:
                 return {"action": "list_dir", "result": list_dir(target)}
             except FileNotFoundError as exc:
                 return {"action": "list_dir", "status": "failed", "error": str(exc)}
+
+        # NL → action graph via local planner (Ollama + heuristic fallback)
+        planned = plan_action_graph(intent)
+        if planned:
+            app, steps = parse_action_graph(planned)
+            if app and steps:
+                execution = self.ui.execute(app, steps)
+                return {
+                    "action": "ui_automation",
+                    "planned_from": intent,
+                    "command": planned,
+                    "app": app,
+                    "execution": execution,
+                }
+
         summary = self._ollama_summary(intent)
         return {"action": "chat", "result": summary}
 

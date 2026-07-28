@@ -47,6 +47,15 @@ This repository contains a personal automation agent that:
   - `automate chrome: hotkey ctrl+l; type https://example.com; press enter`
   - `browse https://example.com`
   - browser workflow: `browse https://example.com workflow: click=#login,fill=#user:me@example.com`
+  - natural language desktop: `open notepad and type hello` (planner → automate graph)
+- Connector execution:
+  - API queues UI/desktop intents as `queued`
+  - connector claims via `GET /v1/devices/{device}/tasks/next`
+  - connector reports via `POST /v1/tasks/{id}/result`
+  - run: `python connector/runtime/agent.py`
+- Telegram approvals:
+  - risky intents get Approve/Deny inline buttons
+  - approved UI tasks are queued for the connector
 - Priority 1 (Drive API hardened):
   - `download quarterly report from google drive`
   - performs fuzzy Drive search + exact/fallback download

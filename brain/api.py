@@ -21,10 +21,34 @@ class CreateTaskRequest(BaseModel):
     intent: str
     target_device: str = "windows-laptop"
     metadata: dict[str, Any] | None = None
+    # When True (default), queue for connector execution instead of inline.
+    dispatch: bool = True
 
 
 class ApprovalRequest(BaseModel):
     approved: bool
+
+
+class TaskResultRequest(BaseModel):
+    status: str = "completed"
+    result: Any = None
+
+
+def _should_dispatch(intent: str, dispatch_flag: bool) -> bool:
+    if not dispatch_flag:
+        return False
+    lower = intent.lower().strip()
+    # Keep approval gate before any execution path.
+    if requires_approval(intent):
+        return False
+    # Device-local UI / browser work should run on connector.
+    if lower.startswith("automate ") or lower.startswith("browse "):
+        return True
+    # Explicit NL desktop phrases also go to connector after planning.
+    desktop_hints = ("open ", "type in ", "click ", "press ", "launch ")
+    return any(h in lower for h in desktop_hints) and not any(
+        x in lower for x in ("gdrive", "google drive", "tableau", "list ")
+    )
 
 
 @app.get("/health")
@@ -37,8 +61,14 @@ async def create_task(req: CreateTaskRequest) -> dict[str, Any]:
     task = store.create_task(req.intent, req.target_device, req.metadata)
     if requires_approval(req.intent) and not (req.metadata or {}).get("approved", False):
         task = store.update_task(task.id, status="pending_approval")
-        await _broadcast(task.id, {"event": "pending_approval", "task_id": task.id})
-        return {"task_id": task.id, "status": task.status, "result": "Approval required"}
+        await _broadcast(task.id, {"event": "pending_approval", "task_id": task.id, "intent": req.intent})
+        return {"task_id": task.id, "status": task.status, "result": "Approval required", "intent": req.intent}
+
+    if _should_dispatch(req.intent, req.dispatch):
+        task = store.update_task(task.id, status="queued")
+        await _broadcast(task.id, {"event": "queued", "task_id": task.id})
+        return {"task_id": task.id, "status": task.status, "result": "Queued for connector"}
+
     store.update_task(task.id, status="running")
     await _broadcast(task.id, {"event": "running", "task_id": task.id})
     result = orch.run(req.intent)
@@ -60,12 +90,37 @@ async def approve_task(task_id: str, req: ApprovalRequest) -> dict[str, Any]:
         await _broadcast(task.id, {"event": "cancelled", "task_id": task.id})
         return {"task_id": task.id, "status": task.status, "result": task.result}
     store.update_metadata(task.id, {"approved": True})
+    # After approval, queue for connector if UI/desktop intent; else run inline.
+    if _should_dispatch(task.intent, True):
+        task = store.update_task(task.id, status="queued")
+        await _broadcast(task.id, {"event": "queued", "task_id": task.id})
+        return {"task_id": task.id, "status": task.status, "result": "Approved and queued"}
     store.update_task(task.id, status="running")
     await _broadcast(task.id, {"event": "running", "task_id": task.id})
     result = orch.run(task.intent)
     task = store.update_task(task.id, status="completed", result=str(result))
     await _broadcast(task.id, {"event": "completed", "task_id": task.id, "result": result})
     return {"task_id": task.id, "status": task.status, "result": result}
+
+
+@app.get("/v1/devices/{device_id}/tasks/next")
+def claim_next_task(device_id: str) -> dict[str, Any]:
+    task = store.claim_next(device_id)
+    if task is None:
+        return {"task": None}
+    return {"task": task.__dict__}
+
+
+@app.post("/v1/tasks/{task_id}/result")
+async def report_task_result(task_id: str, req: TaskResultRequest) -> dict[str, Any]:
+    try:
+        store.get_task(task_id)
+    except KeyError as exc:
+        raise HTTPException(404, "task not found") from exc
+    status = req.status if req.status in {"completed", "failed"} else "completed"
+    task = store.update_task(task_id, status=status, result=str(req.result))
+    await _broadcast(task.id, {"event": status, "task_id": task.id, "result": req.result})
+    return {"task_id": task.id, "status": task.status, "result": task.result}
 
 
 @app.get("/v1/tasks/{task_id}")
