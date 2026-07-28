@@ -43,23 +43,29 @@ class Orchestrator:
         if route == "gdrive":
             filename = self._guess_filename(intent)
             self.memory.add_fact(f"dataset:{filename}", f"Google Drive dataset requested: {filename}", {"kind": "dataset"})
-            path = download_file_by_name(
-                filename=filename,
-                output_dir=settings.default_download_dir,
-                credentials_file=settings.drive_credentials_file,
-                token_file=settings.drive_token_file,
-            )
+            try:
+                path = download_file_by_name(
+                    filename=filename,
+                    output_dir=settings.default_download_dir,
+                    credentials_file=settings.drive_credentials_file,
+                    token_file=settings.drive_token_file,
+                )
+            except Exception as exc:
+                return {"action": "download_gdrive", "status": "failed", "error": str(exc)}
             self.prefs.set("last_download_path", path)
             return {"action": "download_gdrive", "path": path}
         if route == "tableau":
             filename = self._guess_filename(intent)
-            csv_path = download_file_by_name(
-                filename=filename,
-                output_dir=settings.default_download_dir,
-                credentials_file=settings.drive_credentials_file,
-                token_file=settings.drive_token_file,
-            )
-            twbx = build_twbx_from_template(csv_path, "skills/templates/default.twb", settings.default_output_dir)
+            try:
+                csv_path = download_file_by_name(
+                    filename=filename,
+                    output_dir=settings.default_download_dir,
+                    credentials_file=settings.drive_credentials_file,
+                    token_file=settings.drive_token_file,
+                )
+                twbx = build_twbx_from_template(csv_path, "skills/templates/default.twb", settings.default_output_dir)
+            except Exception as exc:
+                return {"action": "build_tableau", "status": "failed", "error": str(exc)}
             self.prefs.set("last_tableau_output", twbx)
             self.memory.add_fact(
                 f"tableau:{filename}",
@@ -68,9 +74,17 @@ class Orchestrator:
             )
             return {"action": "build_tableau", "csv_path": csv_path, "twbx": twbx}
         if lower.startswith("open "):
-            return {"action": "open_path", "result": open_path(intent[5:].strip())}
+            target = intent[5:].strip()
+            try:
+                return {"action": "open_path", "result": open_path(target)}
+            except FileNotFoundError as exc:
+                return {"action": "open_path", "status": "failed", "error": str(exc)}
         if lower.startswith("list "):
-            return {"action": "list_dir", "result": list_dir(intent[5:].strip())}
+            target = intent[5:].strip()
+            try:
+                return {"action": "list_dir", "result": list_dir(target)}
+            except FileNotFoundError as exc:
+                return {"action": "list_dir", "status": "failed", "error": str(exc)}
         summary = self._ollama_summary(intent)
         return {"action": "chat", "result": summary}
 

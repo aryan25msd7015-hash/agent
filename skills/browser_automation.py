@@ -60,14 +60,5 @@ def run_workflow(url: str, actions: list[dict[str, str]] | None = None, headless
 
 
 def open_url(url: str) -> dict[str, Any]:
-    """
-    Browser automation hook.
-    If Playwright is available, it can be extended to scripted flows.
-    Current implementation returns an execution plan for safety.
-    """
-    return {
-        "action": "browser_open_url",
-        "url": url,
-        "status": "planned",
-        "note": "Hook ready. Add Playwright script execution per site workflow.",
-    }
+    """Open a URL in a headless browser when Playwright is available."""
+    return run_workflow(url, actions=[], headless=True)

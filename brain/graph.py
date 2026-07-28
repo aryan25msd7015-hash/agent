@@ -16,10 +16,12 @@ def _route(state: AgentState) -> AgentState:
         state["route"] = "ui_automation"
     elif text.startswith("browse "):
         state["route"] = "browser"
-    elif "gdrive" in text and "download" in text:
+    elif ("gdrive" in text or "google drive" in text) and ("download" in text or "fetch" in text or "get " in text):
         state["route"] = "gdrive"
     elif "tableau" in text:
         state["route"] = "tableau"
+    elif "google drive" in text or "drive.google.com" in text:
+        state["route"] = "browser"
     else:
         state["route"] = "chat"
     return state

@@ -11,4 +11,4 @@ def test_orchestrator_ui_automation_route() -> None:
 def test_orchestrator_browser_route() -> None:
     orch = Orchestrator()
     res = orch.run("browse https://example.com")
-    assert res["action"] == "browser_open_url"
+    assert res["action"] == "browser_workflow"
