@@ -15,6 +15,8 @@ class Settings:
     ollama_model: str = os.getenv("OLLAMA_MODEL", "llama3.1:8b")
     drive_credentials_file: str = os.getenv("GOOGLE_CREDENTIALS_FILE", "config/google_client_secret.json")
     drive_token_file: str = os.getenv("GOOGLE_TOKEN_FILE", "config/google_token.json")
+    drive_playwright_user_data_dir: str = os.getenv("DRIVE_PLAYWRIGHT_USER_DATA_DIR", "data/playwright-drive-profile")
+    drive_playwright_state_file: str = os.getenv("DRIVE_PLAYWRIGHT_STATE_FILE", "config/drive_storage_state.json")
     default_download_dir: str = os.getenv("DEFAULT_DOWNLOAD_DIR", "data/inbox")
     default_output_dir: str = os.getenv("DEFAULT_OUTPUT_DIR", "artifacts")
 

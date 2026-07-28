@@ -47,3 +47,10 @@ This repository contains a personal automation agent that:
   - `automate chrome: hotkey ctrl+l; type https://example.com; press enter`
   - `browse https://example.com`
   - browser workflow: `browse https://example.com workflow: click=#login,fill=#user:me@example.com`
+- Priority 1 (Drive API hardened):
+  - `download quarterly report from google drive`
+  - performs fuzzy Drive search + exact/fallback download
+- Priority 2 (Drive web automation):
+  - one-time login bootstrap on desktop: `python deploy/bootstrap_drive_login.py`
+  - command route: `browse https://drive.google.com download quarterly_report.csv`
+  - requires persistent logged-in profile at `DRIVE_PLAYWRIGHT_USER_DATA_DIR`

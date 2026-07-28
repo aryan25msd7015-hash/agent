@@ -10,9 +10,14 @@ from brain.memory.chroma_store import MemoryStore
 from brain.memory.prefs import PrefStore
 from config.settings import settings
 from skills.action_graph import parse_action_graph
-from skills.browser_automation import open_url, run_workflow
+from skills.browser_automation import (
+    bootstrap_google_login,
+    google_drive_web_download,
+    open_url,
+    run_workflow,
+)
 from skills.build_tableau import build_twbx_from_template
-from skills.download_gdrive import download_file_by_name
+from skills.download_gdrive import download_file_by_name, search_files
 from skills.registry import list_dir, open_path
 from skills.ui_automation import UIAutomationEngine
 
@@ -34,16 +39,32 @@ class Orchestrator:
             return {"action": "ui_automation", "app": app, "execution": execution}
         if route == "browser" and lower.startswith("browse "):
             url = intent[7:].strip()
+            if "drive.google.com" in url and "download" in lower:
+                query = self._guess_drive_query(intent)
+                return google_drive_web_download(
+                    query=query,
+                    download_dir=settings.default_download_dir,
+                    user_data_dir=settings.drive_playwright_user_data_dir,
+                    headless=True,
+                )
             if "workflow:" in url:
                 # Format: browse <url> workflow: click=#id,fill=#q:hello
                 target, workflow = url.split("workflow:", maxsplit=1)
                 actions = self._parse_workflow(workflow.strip())
                 return run_workflow(target.strip(), actions=actions)
             return open_url(url)
+        if lower.startswith("drive login bootstrap"):
+            return bootstrap_google_login(settings.drive_playwright_user_data_dir, headless=True)
         if route == "gdrive":
-            filename = self._guess_filename(intent)
+            filename = self._guess_drive_query(intent)
             self.memory.add_fact(f"dataset:{filename}", f"Google Drive dataset requested: {filename}", {"kind": "dataset"})
             try:
+                candidates = search_files(
+                    query=filename,
+                    credentials_file=settings.drive_credentials_file,
+                    token_file=settings.drive_token_file,
+                    limit=5,
+                )
                 path = download_file_by_name(
                     filename=filename,
                     output_dir=settings.default_download_dir,
@@ -53,9 +74,9 @@ class Orchestrator:
             except Exception as exc:
                 return {"action": "download_gdrive", "status": "failed", "error": str(exc)}
             self.prefs.set("last_download_path", path)
-            return {"action": "download_gdrive", "path": path}
+            return {"action": "download_gdrive", "path": path, "candidates": candidates}
         if route == "tableau":
-            filename = self._guess_filename(intent)
+            filename = self._guess_drive_query(intent)
             try:
                 csv_path = download_file_by_name(
                     filename=filename,
@@ -93,6 +114,20 @@ class Orchestrator:
             if token.endswith((".csv", ".xlsx", ".json")):
                 return token
         return "sales_data.csv"
+
+    def _guess_drive_query(self, intent: str) -> str:
+        explicit = self._guess_filename(intent)
+        if explicit != "sales_data.csv":
+            return explicit
+        text = intent.lower()
+        if "download" in text:
+            after = text.split("download", maxsplit=1)[1].strip()
+            for stop in [" from ", " in ", " on ", " using "]:
+                if stop in after:
+                    after = after.split(stop, maxsplit=1)[0].strip()
+            if after:
+                return after
+        return "sales_data"
 
     def _ollama_summary(self, intent: str) -> str:
         payload = {"model": settings.ollama_model, "prompt": f"Summarize intent in 1 line: {intent}", "stream": False}

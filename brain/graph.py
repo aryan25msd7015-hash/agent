@@ -20,7 +20,7 @@ def _route(state: AgentState) -> AgentState:
         state["route"] = "gdrive"
     elif "tableau" in text:
         state["route"] = "tableau"
-    elif "google drive" in text or "drive.google.com" in text:
+    elif "google drive web" in text or "drive.google.com" in text:
         state["route"] = "browser"
     else:
         state["route"] = "chat"
