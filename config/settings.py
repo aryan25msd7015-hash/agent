@@ -19,6 +19,11 @@ class Settings:
     drive_playwright_state_file: str = os.getenv("DRIVE_PLAYWRIGHT_STATE_FILE", "config/drive_storage_state.json")
     default_download_dir: str = os.getenv("DEFAULT_DOWNLOAD_DIR", "data/inbox")
     default_output_dir: str = os.getenv("DEFAULT_OUTPUT_DIR", "artifacts")
+    laptop_mac_address: str = os.getenv("LAPTOP_MAC_ADDRESS", "")
+    allowed_path_roots: str = os.getenv(
+        "ALLOWED_PATH_ROOTS",
+        "data,artifacts,brain/memory,D:/Agent,D:/Dashboards,C:/Users",
+    )
 
 
 settings = Settings()

@@ -12,10 +12,14 @@ class AgentState(TypedDict):
 
 def _route(state: AgentState) -> AgentState:
     text = state["intent"].lower()
-    if text.startswith("automate "):
+    if text.startswith("automate ") or text.startswith("vision "):
         state["route"] = "ui_automation"
     elif text.startswith("browse "):
         state["route"] = "browser"
+    elif ("onedrive" in text) and ("download" in text or "fetch" in text or "get " in text):
+        state["route"] = "onedrive"
+    elif ("dropbox" in text) and ("download" in text or "fetch" in text or "get " in text):
+        state["route"] = "dropbox"
     elif ("gdrive" in text or "google drive" in text) and ("download" in text or "fetch" in text or "get " in text):
         state["route"] = "gdrive"
     elif "tableau" in text:

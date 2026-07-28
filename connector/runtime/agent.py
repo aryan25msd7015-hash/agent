@@ -7,6 +7,7 @@ from typing import Any
 import httpx
 
 from brain.orchestrator import Orchestrator
+from skills.power import keep_awake_windows
 
 
 class ConnectorAgent:
@@ -17,6 +18,7 @@ class ConnectorAgent:
         self.orch = Orchestrator()
 
     def loop(self) -> None:
+        keep_awake_windows(True)
         print(f"Connector online for device={self.device_id}. Claiming queued tasks.")
         while True:
             try:

@@ -66,3 +66,19 @@ This repository contains a personal automation agent that:
   - flow: search result -> right-click/overflow menu -> Download -> save to inbox
   - Google Docs/Sheets/Slides fallback: Export submenu OR File→Download in editor (PDF/DOCX/XLSX/CSV)
   - Drive API also auto-exports Workspace files (Docs→PDF/DOCX, Sheets→XLSX/CSV)
+  - **API-first**: Drive download tries OAuth API, then web session fallback
+- Desktop reliability:
+  - pywinauto window focus before UI steps
+  - screenshot verify/retry after each UI step (`artifacts/screenshots`)
+  - vision mode: `vision type hello in notepad`
+- Safety:
+  - path allowlist via `ALLOWED_PATH_ROOTS`
+  - audit log + Telegram `/history` and `GET /v1/history`
+- Power:
+  - `keep awake` / `keep awake off`
+  - `wake AA:BB:CC:DD:EE:FF` (Wake-on-LAN; set `LAPTOP_MAC_ADDRESS` / `WOL_BROADCAST_IP`)
+- Cloud storage:
+  - `download file.csv from onedrive` (needs `ONEDRIVE_ACCESS_TOKEN`)
+  - `download file.csv from dropbox` (needs `DROPBOX_ACCESS_TOKEN`)
+- Mobile:
+  - Android Appium is stubbed; see `docs/APPIUM.md`

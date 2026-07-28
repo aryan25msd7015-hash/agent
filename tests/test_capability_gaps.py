@@ -22,8 +22,8 @@ def test_google_drive_web_hits_signin_without_session() -> None:
 def test_mobile_device_intent_does_not_execute_on_device() -> None:
     orch = Orchestrator()
     result = orch.run("open notepad on my android tablet")
-    assert result["action"] == "open_path"
-    assert result.get("status") == "failed"
+    assert result["action"] == "appium_run"
+    assert result.get("status") == "unsupported"
 
 
 def test_desktop_app_requires_automate_prefix() -> None:

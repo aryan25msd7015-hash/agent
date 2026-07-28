@@ -23,6 +23,9 @@ dependencies = [
   "langgraph>=0.6.6",
   "keyring>=25.6.0",
   "playwright>=1.55.0",
+  "pywinauto>=0.6.9",
+  "Pillow>=11.3.0",
+  "wakeonlan>=3.1.0",
 ]
 
 [project.optional-dependencies]

@@ -41,7 +41,25 @@ async def _authorized(update: Update) -> bool:
 async def start(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     if not await _authorized(update):
         return
-    await update.message.reply_text("Personal agent online. Send a task.")
+    await update.message.reply_text(
+        "Personal agent online.\nCommands: /history, STOP, START, keep awake, wake <mac>"
+    )
+
+
+async def history_cmd(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
+    if not await _authorized(update):
+        return
+    async with httpx.AsyncClient(timeout=30) as client:
+        r = await client.get(f"{API}/v1/history?limit=10")
+        r.raise_for_status()
+        events = r.json().get("events", [])
+    if not events:
+        await update.message.reply_text("No audit events yet.")
+        return
+    lines = []
+    for ev in events[-10:]:
+        lines.append(f"{ev.get('ts','')} | {ev.get('event')} | {str(ev.get('payload'))[:120]}")
+    await update.message.reply_text("\n".join(lines))
 
 
 async def handle_text(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
@@ -148,6 +166,7 @@ async def _wait_for_terminal(task_id: str, timeout_s: int = 180) -> str:
 def run() -> None:
     app = Application.builder().token(settings.telegram_token).build()
     app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("history", history_cmd))
     app.add_handler(CallbackQueryHandler(handle_approval_callback))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
     app.add_handler(MessageHandler(filters.VOICE, handle_voice))
