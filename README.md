@@ -55,3 +55,5 @@ This repository contains a personal automation agent that:
   - command route: `browse https://drive.google.com download quarterly_report.csv`
   - requires persistent logged-in profile at `DRIVE_PLAYWRIGHT_USER_DATA_DIR`
   - flow: search result -> right-click/overflow menu -> Download -> save to inbox
+  - Google Docs/Sheets/Slides fallback: Export submenu OR File→Download in editor (PDF/DOCX/XLSX/CSV)
+  - Drive API also auto-exports Workspace files (Docs→PDF/DOCX, Sheets→XLSX/CSV)

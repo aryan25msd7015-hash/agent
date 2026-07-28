@@ -5,7 +5,15 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
-from skills.drive_web_helpers import click_download_menu_item, file_row_locators, pick_first_visible
+from skills.drive_web_helpers import (
+    click_download_menu_item,
+    click_export_format,
+    file_row_locators,
+    infer_workspace_kind,
+    open_file_menu_download,
+    pick_first_visible,
+    preferred_export_formats,
+)
 
 
 def run_workflow(url: str, actions: list[dict[str, str]] | None = None, headless: bool = True) -> dict[str, Any]:
@@ -148,6 +156,20 @@ def google_drive_web_download(
 
             downloaded_path: str | None = None
             download_error: str | None = None
+            method: str | None = None
+            row_text = ""
+            try:
+                row_text = file_row.inner_text()
+            except Exception:
+                row_text = query
+            kind = infer_workspace_kind(query, row_text)
+            formats = preferred_export_formats(kind, query)
+
+            def _save_download(dl_info: Any) -> str:
+                download = dl_info.value
+                target = Path(download_dir) / download.suggested_filename
+                download.save_as(str(target))
+                return str(target)
 
             # Strategy 1: right-click context menu -> Download
             try:
@@ -156,10 +178,8 @@ def google_drive_web_download(
                 with page.expect_download(timeout=45000) as dl_info:
                     if not click_download_menu_item(page):
                         raise RuntimeError("Download menu item not found in context menu")
-                download = dl_info.value
-                target = Path(download_dir) / download.suggested_filename
-                download.save_as(str(target))
-                downloaded_path = str(target)
+                downloaded_path = _save_download(dl_info)
+                method = "context_download"
             except Exception as exc:
                 download_error = str(exc)
 
@@ -176,28 +196,72 @@ def google_drive_web_download(
                     with page.expect_download(timeout=45000) as dl_info:
                         if not click_download_menu_item(page):
                             raise RuntimeError("Download menu item not found in overflow menu")
-                    download = dl_info.value
-                    target = Path(download_dir) / download.suggested_filename
-                    download.save_as(str(target))
-                    downloaded_path = str(target)
+                    downloaded_path = _save_download(dl_info)
+                    method = "overflow_download"
                 except Exception as exc:
                     download_error = f"{download_error}; overflow: {exc}" if download_error else str(exc)
 
-            # Strategy 3: keyboard shortcut (Shift+Z sometimes opens menu; Alt+Down on selected item)
+            # Strategy 3: keyboard context menu -> Download
             if downloaded_path is None:
                 try:
                     file_row.click()
-                    page.keyboard.press("Shift+F10")  # context menu key
+                    page.keyboard.press("Shift+F10")
                     page.wait_for_timeout(400)
                     with page.expect_download(timeout=45000) as dl_info:
                         if not click_download_menu_item(page):
                             raise RuntimeError("Download menu item not found via keyboard menu")
-                    download = dl_info.value
-                    target = Path(download_dir) / download.suggested_filename
-                    download.save_as(str(target))
-                    downloaded_path = str(target)
+                    downloaded_path = _save_download(dl_info)
+                    method = "keyboard_download"
                 except Exception as exc:
                     download_error = f"{download_error}; keyboard: {exc}" if download_error else str(exc)
+
+            # Strategy 4: native Workspace export submenu (Docs/Sheets/Slides)
+            # Drive: right-click -> Download -> PDF / DOCX / XLSX / CSV
+            if downloaded_path is None:
+                try:
+                    file_row.click(button="right")
+                    page.wait_for_timeout(500)
+                    with page.expect_download(timeout=60000) as dl_info:
+                        if not click_export_format(page, formats):
+                            raise RuntimeError(f"Export format not found for {formats}")
+                    downloaded_path = _save_download(dl_info)
+                    method = f"context_export:{kind or 'unknown'}"
+                except Exception as exc:
+                    download_error = f"{download_error}; export: {exc}" if download_error else str(exc)
+
+            # Strategy 5: open editor -> File -> Download -> format
+            if downloaded_path is None:
+                try:
+                    with context.expect_page(timeout=15000) as new_page_info:
+                        file_row.dblclick()
+                    editor = new_page_info.value
+                    editor.wait_for_load_state("domcontentloaded")
+                    editor.wait_for_timeout(2000)
+                    with editor.expect_download(timeout=60000) as dl_info:
+                        if not open_file_menu_download(editor, formats):
+                            raise RuntimeError("File > Download export failed in editor")
+                    downloaded_path = _save_download(dl_info)
+                    method = f"editor_export:{kind or 'unknown'}"
+                    try:
+                        editor.close()
+                    except Exception:
+                        pass
+                except Exception as exc:
+                    # Some Drive views open in same tab
+                    try:
+                        file_row.dblclick()
+                        page.wait_for_timeout(2500)
+                        with page.expect_download(timeout=60000) as dl_info:
+                            if not open_file_menu_download(page, formats):
+                                raise RuntimeError("File > Download export failed in same tab")
+                        downloaded_path = _save_download(dl_info)
+                        method = f"same_tab_export:{kind or 'unknown'}"
+                    except Exception as exc2:
+                        download_error = (
+                            f"{download_error}; editor_export: {exc}; same_tab: {exc2}"
+                            if download_error
+                            else f"{exc}; {exc2}"
+                        )
 
             context.close()
 
@@ -207,16 +271,20 @@ def google_drive_web_download(
                     "status": "executed",
                     "query": query,
                     "path": downloaded_path,
+                    "method": method,
+                    "workspace_kind": kind,
                     "download_dir": download_dir,
                 }
 
             return {
                 "action": "google_drive_web_download",
                 "status": "failed",
-                "error": download_error or "Download could not be triggered.",
+                "error": download_error or "Download/export could not be triggered.",
                 "query": query,
+                "workspace_kind": kind,
+                "tried_formats": formats,
                 "download_dir": download_dir,
-                "hint": "Native Google Docs may require Export instead of Download; try API path for binary files.",
+                "hint": "For Google Docs/Sheets, prefer export formats or use Drive API with OAuth.",
             }
     except Exception as exc:
         return {
